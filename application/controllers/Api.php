@@ -28,14 +28,33 @@ class Api extends RestController {
     }
 
 	public function getToken_post() {
+		// Periksa X-API-KEY
+		// $api_key = $this->input->request_headers()['X-API-KEY'] ?? null;
+		// if ($api_key !== '123456789abcdefghi') {
+		// 	$this->response([
+		// 		'Status' => false,
+		// 		'Message' => 'Invalid API Key'
+		// 	], RestController::HTTP_UNAUTHORIZED);
+		// 	return;
+		// }
+
 		// Ambil data Basic Auth dari request
 		$auth_user = $this->input->server('PHP_AUTH_USER');
 		$auth_pass = $this->input->server('PHP_AUTH_PW');
+
+		// Ambil API Key dari Header
+		$api_key = $this->input->get_request_header('X-API-KEY');
 	
 		// Cek kredensial (gantilah dengan data dari database jika perlu)
 		$valid_users = [
 			'admin' => '12345' // Contoh username & password
 		];
+
+		// Daftar API Key yang valid
+		$valid_api_keys = [
+			'123456789abcdefghi' // Contoh API Key
+		];
+	
 	
 		// Validasi Basic Auth
 		if (!isset($valid_users[$auth_user])) {
@@ -54,6 +73,15 @@ class Api extends RestController {
 			return;
 		}
 	
+		 // Validasi API Key
+		 if (!in_array($api_key, $valid_api_keys)) {
+			$this->response([
+				'Status' => false,
+				'Message' => 'Invalid API Key'
+			], RestController::HTTP_UNAUTHORIZED);
+			return;
+		}
+		
 		// Jika kredensial valid, buat token
 		$exp = time() + 3600;
 		$token = array(
@@ -80,6 +108,39 @@ class Api extends RestController {
 		$data = array('kode' => '200', 'pesan' => 'token', 'data' => array('token' => $jwt, 'exp' => $exp));
 		$this->response($data, 200);
 	}
+
+	// public function authtoken() {
+	// 	// Periksa X-API-KEY
+	// 	$api_key = $this->input->request_headers()['X-API-KEY'] ?? null;
+	// 	if ($api_key !== '123456789abcdefghi') {
+	// 		return 'salah';
+	// 	}
+	
+	// 	$secret_key = $this->configToken()['secretkey'];
+	// 	$token = null;
+	// 	$authHeader = $this->input->request_headers()['Authorization'] ?? null;
+	
+	// 	if (!$authHeader) {
+	// 		return 'salah';
+	// 	}
+	
+	// 	$arr = explode(" ", $authHeader);
+	// 	$token = $arr[1] ?? null;
+	
+	// 	if ($token) {
+	// 		try {
+	// 			$decoded = JWT::decode($token, new Key($secret_key, 'HS256'));
+	// 			if ($decoded) {
+	// 				return 'benar';
+	// 			}
+	// 		} catch (\Exception $e) {
+	// 			$result = array('pesan' => 'Kode Signature Tidak Sesuai');
+	// 			return 'salah';
+	// 		}
+	// 	}
+	
+	// 	return 'salah';
+	// }
 	
 	public function authtoken() {
 		$secret_key = $this->configToken()['secretkey'];
@@ -102,11 +163,11 @@ class Api extends RestController {
 	}
 
 	public function siswa_get() {
-		// Jika Basic Auth valid, lanjutkan dengan validasi token JWT
+		// Jika X-API-KEY atau token JWT tidak valid, kembalikan respons unauthorized
 		if ($this->authtoken() == 'salah') {
 			return $this->response([
 				'kode' => '401',
-				'pesan' => 'Signature tidak sesuai',
+				'pesan' => 'Unauthorized: Invalid API Key or Token',
 				'data' => []
 			], RestController::HTTP_UNAUTHORIZED);
 		}
