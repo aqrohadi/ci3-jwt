@@ -27,7 +27,34 @@ class Api extends RestController {
         return $cnf;        
     }
 
-	public function getToken_post(){               
+	public function getToken_post() {
+		// Ambil data Basic Auth dari request
+		$auth_user = $this->input->server('PHP_AUTH_USER');
+		$auth_pass = $this->input->server('PHP_AUTH_PW');
+	
+		// Cek kredensial (gantilah dengan data dari database jika perlu)
+		$valid_users = [
+			'admin' => '12345' // Contoh username & password
+		];
+	
+		// Validasi Basic Auth
+		if (!isset($valid_users[$auth_user])) {
+			$this->response([
+				'Status' => false,
+				'Message' => 'Username tidak ditemukan'
+			], RestController::HTTP_UNAUTHORIZED);
+			return;
+		}
+	
+		if ($valid_users[$auth_user] !== $auth_pass) {
+			$this->response([
+				'Status' => false,
+				'Message' => 'Password salah'
+			], RestController::HTTP_UNAUTHORIZED);
+			return;
+		}
+	
+		// Jika kredensial valid, buat token
 		$exp = time() + 3600;
 		$token = array(
 			"iss" => 'apprestservice',
@@ -36,50 +63,59 @@ class Api extends RestController {
 			"nbf" => time() + 10,
 			"exp" => $exp,
 			"data" => array(
-				"username" => $this->input->post('username'),
-				"password" => $this->input->post('password')
+				"username" => $auth_user,
+				"password" => $auth_pass
 			)
-		);       
+		);
+	
 		$jwt = JWT::encode($token, $this->configToken()['secretkey'], 'HS256');
-	$output = [
+	
+		$output = [
 			'status' => 200,
 			'message' => 'Berhasil login',
-			"token" => $jwt,                
+			"token" => $jwt,
 			"expireAt" => $token['exp']
-		];      
-	$data = array('kode'=>'200', 'pesan'=>'token', 'data'=>array('token'=>$jwt, 'exp'=>$exp));
-	$this->response($data, 200 );       
-}
-
-	public function authtoken(){
-        $secret_key = $this->configToken()['secretkey']; 
-        $token = null; 
-        $authHeader = $this->input->request_headers()['Authorization'];  
-        $arr = explode(" ", $authHeader); 
-        $token = $arr[1];        
-        if ($token){
-            try{
+		];
+	
+		$data = array('kode' => '200', 'pesan' => 'token', 'data' => array('token' => $jwt, 'exp' => $exp));
+		$this->response($data, 200);
+	}
+	
+	public function authtoken() {
+		$secret_key = $this->configToken()['secretkey'];
+		$token = null;
+		$authHeader = $this->input->request_headers()['Authorization'];
+		$arr = explode(" ", $authHeader);
+		$token = $arr[1];
+	
+		if ($token) {
+			try {
 				$decoded = JWT::decode($token, new Key($secret_key, 'HS256'));
-                if ($decoded){
-                    return 'benar';
-                }
-            } catch (\Exception $e) {
-                $result = array('pesan'=>'Kode Signature Tidak Sesuai');
-                return 'salah';
-                
-            }
-        }       
-    }
+				if ($decoded) {
+					return 'benar';
+				}
+			} catch (\Exception $e) {
+				$result = array('pesan' => 'Kode Signature Tidak Sesuai');
+				return 'salah';
+			}
+		}
+	}
 
-	public function siswa_get(){
-        if ($this->authtoken() == 'salah'){
-            return $this->response(array('kode'=>'401', 'pesan'=>'signature tidak sesuai', 'data'=>[]), '401');
-            die();
-        }
-        $this->db->select('*');        
-        $data = array ('data'=>$this->db->get('siswa')->result());        
-        $this->response($data, 200 );
-    }
+	public function siswa_get() {
+		// Jika Basic Auth valid, lanjutkan dengan validasi token JWT
+		if ($this->authtoken() == 'salah') {
+			return $this->response([
+				'kode' => '401',
+				'pesan' => 'Signature tidak sesuai',
+				'data' => []
+			], RestController::HTTP_UNAUTHORIZED);
+		}
+	
+		// Jika semua valid, ambil data siswa
+		$this->db->select('*');
+		$data = array('data' => $this->db->get('siswa')->result());
+		$this->response($data, RestController::HTTP_OK);
+	}
 
 	public function siswa_post(){
         $isidata = array('nis'=>$this->input->post('nis'), 'namasiswa'=>$this->input->post('nama'));
